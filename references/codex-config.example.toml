@@ -1,0 +1,27 @@
+# pitcrew × Codex — example ~/.codex/config.toml additions
+#
+# MERGE these into your existing ~/.codex/config.toml (don't overwrite the file).
+# Only the Linear-coupled skills need this; research-run / qa-run write local ledgers
+# and run with no MCP at all.
+
+# ── Linear MCP server ────────────────────────────────────────────────────────
+# Gives the skills their `<LINEAR>` tool family. Codex talks to MCP servers over
+# stdio, so we bridge Linear's remote MCP with `mcp-remote`. First run triggers the
+# Linear OAuth flow in your browser; after that it's cached.
+[mcp_servers.linear]
+command = "npx"
+args = ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+
+# ── Network during headless passes ───────────────────────────────────────────
+# `bin/pitcrew-codex.sh` defaults to the `workspace-write` sandbox, which blocks
+# network — fine for research/qa, but the Linear-coupled skills also shell out to
+# `gh`/curl. Give those passes network one of two ways:
+#
+#   (a) per-run, blunt:   CODEX_SANDBOX=danger-full-access pitcrew-codex.sh implementer-run <proj>
+#   (b) keep the sandbox, allow network for it (preferred) — consult your Codex
+#       version's sandbox docs for the exact key, then run with that profile:
+#         CODEX_PROFILE=pitcrew pitcrew-codex.sh implementer-run <proj>
+#
+# [profiles.pitcrew]
+#   # sandbox / network settings for unattended runs — see `codex` docs for the
+#   # exact keys on your version (they have changed across releases).

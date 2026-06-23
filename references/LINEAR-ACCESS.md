@@ -14,28 +14,32 @@ BLOCK** below) at the very top of its run, before any Linear call.
 
 ## 1. BINDING BLOCK — detect the live Linear MCP each fire
 
-Linear may be reachable under **either** tool family, and which one is live can change
-between fires:
+Linear may be reachable under **different** tool families depending on the harness, and
+which one is live can change between fires. Detect by **capability, not by a fixed name**:
 
-| Binding | Tool prefix | How it's wired |
+| Harness / binding | Tool prefix (example) | How it's wired |
 |---|---|---|
-| Linear's official remote MCP | `mcp__linear-server__*` | project-scoped `type:http` → `mcp.linear.app/mcp` (OAuth) |
-| claude.ai Linear connector | `mcp__claude_ai_Linear__*` | claude.ai-managed connector |
+| Claude Code — Linear's official remote MCP | `mcp__linear-server__*` | project-scoped `type:http` → `mcp.linear.app/mcp` (OAuth) |
+| Claude Code — claude.ai Linear connector | `mcp__claude_ai_Linear__*` | claude.ai-managed connector |
+| Codex — `linear` MCP server | (the prefix Codex assigns) | `[mcp_servers.linear]` in `~/.codex/config.toml` |
 
 **At run start, before any Linear operation:**
 
-1. Look at the tools actually available to you THIS fire. Pick the live Linear family:
-   - If `mcp__linear-server__list_teams` is available → `LINEAR=mcp__linear-server`.
-   - Else if `mcp__claude_ai_Linear__list_teams` is available → `LINEAR=mcp__claude_ai_Linear`.
-   - The two families are **operation-compatible** — same tool names after the prefix
-     (`list_issues`, `get_issue`, `save_issue`, `save_comment`, `list_issue_labels`,
-     `list_issue_statuses`, …) and the same argument shapes. Only the prefix differs.
-2. **Confirm it's the right workspace.** Call `<LINEAR>__list_teams` and verify the
-   configured team is present (matching `linear.team_id` from config). If the
-   live binding is authed to a *different* workspace, treat Linear as **down** (do not
-   write into the wrong workspace) → degraded mode (§2).
-3. Use `<LINEAR>__*` for every Linear call for the rest of the fire. Wherever a skill
-   body says `mcp__linear-server__X`, read it as `<LINEAR>__X`.
+1. Look at the tools actually available to you THIS fire and pick the live Linear family
+   **by capability** — the one that exposes `list_teams` / `get_issue` / `save_issue` /
+   `save_comment` / `list_issue_labels` / `list_issue_statuses` / … (same operations + arg
+   shapes across every family). Set `LINEAR` to its prefix:
+   - Claude Code: `mcp__linear-server__*`, else `mcp__claude_ai_Linear__*`.
+   - Codex: the `linear` server from `~/.codex/config.toml` (whatever prefix Codex gives it).
+   - Only the **prefix** (and how prefix+op are joined) differs — so wherever a skill says
+     `mcp__linear-server__<op>`, call the live family's `<op>` tool under whatever name your
+     harness actually exposes it.
+2. **Confirm it's the right workspace.** Call the live family's `list_teams` and verify the
+   configured team is present (matching `linear.team_id` from config). If the live binding is
+   authed to a *different* workspace, treat Linear as **down** (do not write into the wrong
+   workspace) → degraded mode (§2).
+3. Use the resolved Linear family for every Linear call for the rest of the fire. Wherever a
+   skill body says `mcp__linear-server__X`, read it as the same operation `X` on that family.
 
 > Skills are written with `mcp__linear-server__*` literals for readability. The BINDING
 > BLOCK makes that prefix a **variable**, not a hardcode. If a skill says

@@ -75,7 +75,7 @@ Required for /unblock:
 
 **This file is the complete instruction set for this run.** Self-contained, deterministic, no external context needed.
 
-- DO NOT pause to ask the operator for any clarification that isn't a structured `AskUserQuestion` call. The whole point of this skill is the structured Q&A handoff.
+- DO NOT pause to ask the operator for any clarification that isn't a structured `AskUserQuestion` call (or its plain-text fallback — see STEP 6). The whole point of this skill is the structured Q&A handoff.
 - DO NOT trust conversation memory. State lives in Linear + `unblock-state.json` — re-read every fire.
 - DO NOT touch tickets that aren't in `$STATE_BLOCKED` with label `$AGENT_LABEL`. Other states/labels are NOT yours to triage.
 - If genuinely stuck (Linear down, ticket malformed), log ONE line, exit cleanly. The next fire will retry.
@@ -213,6 +213,8 @@ jq --arg t "<TICKET-id>" --arg ts "$NOW" \
 If a later fire hits STEP 0 while this fire is between STEPs 5 and 9, it'll see the lock and exit cleanly.
 
 **STEP 6. Surface the shape-appropriate question via AskUserQuestion.**
+
+> **Harness note (AskUserQuestion fallback).** `AskUserQuestion` is a Claude Code tool. If it isn't available this fire (e.g. under Codex), present the SAME question as plain text instead: print the prompt, the 2–4 options as a numbered list, plus an `Other (free-form)` choice — then read the operator's typed reply and map it to the chosen option (a number, an option label, or free text). The lock, the one-question-in-flight rule, and the answer handling below are identical — only the asking primitive changes.
 
 Pick ONE of the templates below by shape. Each is an `AskUserQuestion` call with 2-4 structured options. You can always pick "Other" for a free-form answer.
 
