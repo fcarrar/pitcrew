@@ -45,7 +45,11 @@ Each repo entry:
 }
 ```
 
-### Required for `implementer-run` and `research-run` (Linear integration)
+### Required for `implementer-run` (Linear integration)
+
+> `research-run` and `qa-run` no longer write Linear directly — they record findings to local
+> ledgers that `/manager-run` reads and paces into the tracker. So they need **no** Linear binding;
+> only `/manager-run` (and the skills that act on tickets) do.
 
 | Field | What it is |
 |---|---|
@@ -76,6 +80,20 @@ The runner reads `<test_flow_repo>/.env` for env-specific URLs (`<UPPERCASE_PROJ
 | `researcher.architecture_path` | Local path to it (may live outside `repos[]`) |
 
 Omit both if you don't have a cross-service architecture doc — `architecture` mode is dropped automatically.
+
+### Required for `manager-run`
+
+`manager-run` is the single paced gate that turns findings ledgers into tickets. Configure
+`manager.sources[]` — one entry per findings source (`audit`, `qa`, `research`). Each is its own
+**bucket** with its own Linear label and depth, so no source starves another:
+
+| Field (per source) | What it is |
+|---|---|
+| `name` | Source id (`audit` / `qa` / `research`). |
+| `findings_json` | Path to that source's ledger (qa/research ledgers live under `~/.claude/agent-loop/<project>/findings/`). |
+| `format` | `audit-v1` \| `qa-v1` \| `research-v1` — tells the manager how to normalize. |
+| `label` | The source's bucket label (default = `name`). Every ticket from this source carries it. |
+| `target_depth` / `investigate_wip` | (Optional) Per-source caps; fall back to `manager.target_queue_depth` / `manager.investigate_wip`. |
 
 ### Optional everywhere
 

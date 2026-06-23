@@ -46,10 +46,11 @@
   },
 
   "manager": {
-    "_comment": "manager-run intake/grooming. sources[] point at curated findings files (e.g. a repo audit). target_queue_depth = max open agent-route audit tickets kept in agent-todo (paced refill). investigate_wip = max open investigate-route audit tickets (risky findings routed to humans). risky_categories_regex routes critical/high + security/auth/money to investigate-first.",
+    "_comment": "manager-run intake/grooming — the single paced gate from findings sources into the issue tracker. PER-SOURCE BUCKETS: each source gets its own Linear label (its bucket) and its own depth, so audit / qa / research never starve each other. Each sources[] entry: {name, findings_json, format(audit-v1|qa-v1|research-v1), label(default=name; audit defaults to audit_label), target_depth(default below), investigate_wip(default below), report_md(optional)}. target_queue_depth/investigate_wip below are the FALLBACK per-source defaults. risky_categories_regex routes critical/high + security/auth/money findings to investigate-first.",
     "sources": [
-      { "name": "example-audit", "findings_json": "~/Documents/projects/<audit>/data/final_result.json", "format": "audit-v1", "report_md": "~/Documents/projects/<audit>/REPORT.md" },
-      { "name": "qa", "findings_json": "~/.claude/agent-loop/<project>/findings/qa-findings.json", "format": "qa-v1" }
+      { "name": "audit",    "findings_json": "~/Documents/projects/<audit>/data/final_result.json", "format": "audit-v1", "label": "audit", "report_md": "~/Documents/projects/<audit>/REPORT.md" },
+      { "name": "qa",       "findings_json": "~/.claude/agent-loop/<project>/findings/qa-findings.json",       "format": "qa-v1",       "label": "qa",       "target_depth": 5, "investigate_wip": 3 },
+      { "name": "research", "findings_json": "~/.claude/agent-loop/<project>/findings/research-findings.json", "format": "research-v1", "label": "research", "target_depth": 5, "investigate_wip": 3 }
     ],
     "target_queue_depth": 5,
     "investigate_wip": 3,
@@ -141,7 +142,9 @@
   },
 
   "researcher": {
+    "_comment": "research-run no longer files tickets directly — it records findings to `findings_ledger` (default ~/.claude/agent-loop/<project>/findings/research-findings.json) which /manager-run reads and paces into the tracker. Add the same path as a `research` source in manager.sources[]. architecture_repo/path enable the optional `architecture` research mode (dropped if empty).",
     "modes": ["hygiene", "hardening", "doc-sync", "architecture"],
+    "findings_ledger": "",
     "architecture_repo": "",
     "architecture_path": ""
   },

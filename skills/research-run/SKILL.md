@@ -1,11 +1,11 @@
 ---
 name: research-run
-description: One pass of the researcher agent — scans one (repo, mode) cell for code/docs/architecture drift and files Linear `Improvement` tickets the implementer agent picks up later
+description: One pass of the researcher agent — scans one (repo, mode) cell for code/docs/architecture drift and records findings to a local ledger for /manager-run to ticket (paced + deduped). No longer files Linear tickets directly.
 ---
 
 You are the researcher agent. This is one pass.
 
-Your job is **NOT to fix code**. You scan one cell of the codebase, identify high-confidence improvements, and file Linear tickets. The implementer agent (or the human) picks them up later.
+Your job is **NOT to fix code** and **NOT to file Linear tickets** (filing directly across N repos × 3 modes flooded the backlog). You scan one cell of the codebase, identify high-confidence improvements, and record them to a local **findings ledger**. `/manager-run` reads the ledger and turns findings into paced, deduped Linear tickets.
 
 ═══ STEP −1: LOAD PROJECT CONFIG ═══
 
@@ -31,8 +31,10 @@ STATE_DIR="$CONFIG_DIR/state"
 mkdir -p "$STATE_DIR"
 [ ! -f "$CONFIG_FILE" ] && { echo "agent-loop: config missing at $CONFIG_FILE — see pitcrew/references/SETUP.md"; exit 0; }
 
-LINEAR_USE=$(jq -r '.linear.use // false' "$CONFIG_FILE")
-[ "$LINEAR_USE" != "true" ] && { echo "research-run requires Linear (.linear.use=true), exiting."; exit 0; }
+# research-run no longer writes Linear directly — it records findings to a ledger that /manager-run
+# tickets. So it does NOT require linear.use. The findings ledger path:
+RESEARCH_LEDGER=$(jq -r --arg d "$CONFIG_DIR/findings" '.researcher.findings_ledger // ($d + "/research-findings.json")' "$CONFIG_FILE" | sed "s|^~|$HOME|")
+mkdir -p "$(dirname "$RESEARCH_LEDGER")"
 
 LINEAR_TEAM=$(jq -r '.linear.team_name' "$CONFIG_FILE")
 LINEAR_WORKSPACE=$(jq -r '.linear.workspace_slug' "$CONFIG_FILE")
@@ -71,7 +73,7 @@ To set up:
 
 ═══ PRIME DIRECTIVE (read every fire, do not skim) ═══
 
-**LINEAR BINDING (resilience layer — read `references/LINEAR-ACCESS.md`).** Before any Linear call, resolve the live binding: if `mcp__linear-server__list_teams` is available use `LINEAR=mcp__linear-server`; else if `mcp__claude_ai_Linear__list_teams` is available use `LINEAR=mcp__claude_ai_Linear` (the two families are operation-compatible — same tool names + args after the prefix). Confirm `<LINEAR>__list_teams` includes the configured team (matching `linear.team_id` from config); a different workspace counts as DOWN. Everywhere this file writes `mcp__linear-server__X`, call `<LINEAR>__X` with the live prefix. If NEITHER family is live (or only a wrong-workspace one is): log one line `<skill>: Linear unreachable — degraded mode` and exit cleanly (a Linear-write agent does no writes; an acting agent does only Linear-independent, read-grounded work). Never bail blind, never write to the wrong workspace.
+**NO LINEAR DEPENDENCY.** research-run no longer writes Linear directly — it records findings to a local ledger that `/manager-run` reads, dedups, routes, and tickets (paced). So research-run needs NO Linear binding and is UNAFFECTED by Linear MCP availability. (Historical: it filed up to 3 Improvement tickets per cell directly; across all repos × 3 modes that flooded the backlog — the manager now paces them in.)
 
 
 **This file is the complete instruction set for this run.** Self-contained, deterministic, no external context needed.
@@ -85,16 +87,15 @@ To set up:
 - **ALWAYS read `$CONFIG_DIR/lessons.md` at the very top of the run** (if it exists). Rules under the "Researcher" section apply to every finding you consider this fire. If a rule would have skipped a finding you're about to file, skip it.
 - **ALSO read `$CONFIG_DIR/TOPOLOGY.md`** at the start of every run (if it exists). It is the skill-family overview: who does what, label-routing rules, handoff flow. Single source of truth — if you're unsure which skill a ticket belongs to or how a handoff is supposed to work, TOPOLOGY answers it.
 
-If the Linear MCP tools (`mcp__linear-server__*`) are not available, exit with: "Linear MCP not available, exiting."
 
 ═══ HARD RULES ═══
 1. NEVER edit any code, never push branches, never open PRs. You FILE TICKETS, that's it.
-2. NEVER file more than 3 Linear tickets per run.
-3. NEVER file a ticket without first searching Linear for an existing similar ticket (dedupe by keyword).
+2. Record at most ~8 findings to the ledger per run (top by confidence). You scan one cell per fire; the manager paces ledger→Linear, so no hard ticket cap is needed here — just keep each cell's contribution focused + high-quality.
+3. NEVER add a finding already in the ledger (dedupe by finding-key) or already recorded by a prior cell. The manager dedups against Linear; you dedup against the LEDGER + your cell state.
 4. NEVER file findings below ~80% confidence. Log them to state but skip filing.
 5. NEVER add Co-Authored-By footers (you're not committing anything anyway, but be consistent).
-6. ALL findings get the `$IMPROVEMENT_LABEL` Linear label. Add the `$QUICK_WIN_LABEL` label ONLY if the fix is genuinely ≤2 files of substantive change with no architectural decisions required.
-7. Tickets MUST carry the `$AGENT_LABEL` label so `/implementer-run` can pick them up — that's the eligibility gate. Also set `assignee: "$ASSIGNEE_EMAIL"` as a convention so they show up in the operator's "assigned to me" view, but assignee is NOT the eligibility filter.
+6. You do NOT label, route, or file tickets — the manager does. Record `severity` + `category` + a `quick_win` boolean (≤2 files, mechanical, no architecture) on each finding; the manager derives the Linear labels/priority/routing from those.
+7. The ledger is the durable record of what research found; the manager owns what becomes a Linear ticket, when, with which labels (research bucket — see manager-run).
 8. Findings MUST be self-contained: ticket body should give the next agent (or human) everything needed without re-discovery.
 
 ═══ CELLS & STATE ═══
@@ -218,55 +219,46 @@ ALL findings must include: file path(s), line number(s) where relevant, a one-pa
 
 For each finding produced by the analysis:
 - **Confidence check**: would the human agree this is a real issue worth fixing? If <80% confident, log to state under `skipped_low_confidence` and DO NOT file.
-- **Dedupe check**: search Linear for existing open tickets with overlapping keywords. Use `mcp__linear-server__list_issues` with `query` containing the most distinctive keyword from the finding (function name, file path, error message). If a ticket from the last 60 days matches, log under `skipped_dedupe` and DO NOT file.
-- **Cap**: keep at most 3 findings to file (highest-confidence first).
+- **Dedupe check**: check the research ledger for an existing finding with the same finding-key (`<repo>::<mode>::<distinctive — file path + smell/category>`). If present, bump its `occurrences`/`last_seen` instead of adding a duplicate. (The manager handles dedup-against-Linear later.)
+- **Cap**: keep at most ~8 findings to record this cell (highest-confidence first).
 
-**STEP 4. File the surviving findings as Linear tickets.**
+**STEP 4. Write the surviving findings to the research ledger.**
 
-For each finding to file:
-- Title format: `<repo>: <one-line punchy summary>` (≤72 chars).
-- Body format:
+research-run does NOT file Linear tickets. It appends to a rolling **research findings ledger**
+that `/manager-run` reads (source format `research-v1`) and turns into paced, deduped Linear
+tickets under the `research` bucket. Path: `$RESEARCH_LEDGER` (default `$CONFIG_DIR/findings/
+research-findings.json`). If absent, treat as `{"source":"research-run","updated_at":null,"findings":[]}`.
 
-  ```
-  ## What
+**Stable finding identity (recurring-drift dedup):** `finding-key = <repo>::<mode>::<signature>`
+where `signature` is the distinctive locus — the primary `file:line` (or the function/symbol name,
+or the doc-claim) + the smell/category, with run-noise stripped. The SAME drift found again on a
+later cell scan → the SAME key → ONE ledger entry (`occurrences++`), so the manager files ONE
+ticket, not one per scan.
 
-  <2-3 sentence description of the finding>
+For each finding to record, UPSERT the ledger:
+1. Compute `key`. **Exists** → bump `occurrences`, set `last_seen`/`last_cell`, refresh the snippet.
+   Do NOT duplicate. **New** → append:
+   ```json
+   { "key":"<repo>::<mode>::<signature>", "repo":"...", "mode":"hygiene|hardening|doc-sync|architecture",
+     "category":"<short — 'dead export' | 'as any' | 'doc drift' | 'unguarded err' | ...>",
+     "severity":"medium|low", "quick_win": true,
+     "title":"<repo>: <one-line punchy summary>",
+     "what":"<2-3 sentences>", "where":["<repo>/<file>:<line> — note", "..."],
+     "why":"<1-2 sentence consequence>", "suggested_fix":"<2-4 sentence sketch>",
+     "acceptance":["<verifiable outcome>", "tests/type-check clean"],
+     "first_seen":"<utc>", "last_seen":"<utc>", "last_cell":"<repo>:<mode>", "occurrences":1 }
+   ```
+   **Severity:** `hygiene`/`doc-sync` → `low`; `hardening`/`architecture` → `medium` (correctness).
+   **quick_win:** true only if ≤2 distinct files of substantive change, mechanical (rename/extract/
+   delete-dead/type-tighten), no architectural decision, single repo. (Same gate as before — the
+   manager reads this boolean to decide the `quick-win` label.) Past mis-applications to avoid:
+   a 5-file change is NOT quick-win; introducing a new error-class hierarchy across many sites is NOT.
+2. Write the ledger atomically (`.tmp` → `mv`), set `updated_at`. **Redact** any secret/token.
 
-  ## Where
-
-  - `<repo>/<path/to/file.ts>:<line>` — <short note>
-  - `<repo>/<path/to/other.ts>:<line>` — <short note>
-
-  ## Why it matters
-
-  <1-2 sentence rationale, ideally citing a concrete consequence>
-
-  ## Suggested fix
-
-  <2-4 sentence sketch — what to change, where to put it, what the agent picking
-  this up would actually do>
-
-  ## Acceptance
-
-  - [ ] <concrete verifiable outcome>
-  - [ ] <e.g. tests pass, type-check clean>
-
-  ---
-  Filed by `research-run` on <ISO timestamp>
-  Cell: `<repo>:<mode>`
-  ```
-
-- Labels: `$AGENT_LABEL` ALWAYS (this is the eligibility gate that lets `/implementer-run` see the ticket) + `$IMPROVEMENT_LABEL` ALWAYS (category). Add `$QUICK_WIN_LABEL` **only if ALL of these hold**:
-  1. **File-count gate (mandatory, deterministic):** the ticket body's `## Where` section lists ≤2 distinct file paths of substantive change. Count by `grep -cE '^\* `[^`]+:' <body>` on the final body before filing. If the count is >2, the label MUST NOT be applied — log to state under `skipped_quick_win` and proceed without it. "Cascade" or "consumer" files mentioned for context still count; if the realistic fix needs to touch them, they're in scope. When unsure, do not apply.
-  2. **No architectural decisions** — fix is a single mechanical pattern, not "pick between two designs".
-  3. **No service-coordination** — fix lives in one repo (no MCP↔BFF↔connector trio).
-  4. **Fix is mechanical** — rename / extract / type-tighten / delete dead code / replace stringly-typed with constants. NOT: new abstraction, new interface, new error class hierarchy.
-  Past mis-applications (do not repeat): a 5-file change in `## Where` was wrongly labeled quick-win — the file-count gate would have caught it. A 1-file change that introduces a new error-class hierarchy across 25 throw sites violates rule 4 (new abstraction). Tag both as Improvement only.
-- Assignee: `$ASSIGNEE_EMAIL`.
-- Team: `$LINEAR_TEAM`.
-- **State: `$STATE_TODO`** (agent-todo) — this is what makes the ticket appear in `/implementer-run` STEP B's eligibility query. Tickets in default `Backlog` won't be picked up.
-- Project: if `$AGENT_BACKLOG_PROJECT` non-empty, pass it; else file directly to team backlog.
-- Priority: `4` (Low) for hygiene/doc-sync findings, `3` (Medium) for hardening/architecture findings (these have correctness implications).
+`/manager-run` reads this ledger as `research-v1`: it dedups each entry against existing Linear +
+its own state, routes (mostly `agent` since these are contained Improvements; a hardening finding
+in an auth/security/money file → `investigate`), and paces filing under the `research` bucket — so
+research drift drips into Linear at the loop's throughput, never a flood.
 
 **STEP 5. Update state.**
 
@@ -281,11 +273,11 @@ Append to `history` (keep last 100 entries). Write atomically (`<file>.tmp` → 
 
 Format:
 ```
-[research:$PROJECT] <repo>:<mode> — analyzed N findings, filed M tickets (skipped L low-conf, K dupes). State updated.
+[research:$PROJECT] <repo>:<mode> — analyzed N findings, recorded M to ledger (skipped L low-conf, K dupes). State + ledger updated.
 ```
 
 ═══ FAILURE MODES ═══
-- Linear MCP unavailable → exit with `Linear MCP not available, exiting.` Do not write state.
+- (research-run no longer depends on Linear — it writes a local ledger; a Linear outage does not affect it.)
 - Repo missing on disk → log `Cell <repo>:<mode> skipped — repo not found at <path>.` Update state's `last_run_at` so we don't keep retrying. Pick the next-oldest cell instead.
 - Tool missing for an analysis (e.g. `knip` not installed) → fall back to `rg`/`grep` heuristics, don't crash.
 - State file corrupt JSON → back it up to `<file>.bak.<timestamp>`, reinitialize fresh.

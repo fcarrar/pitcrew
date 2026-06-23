@@ -1,6 +1,6 @@
 ---
 name: manager-run
-description: One pass of the manager agent — a backlog intake/grooming agent that turns a curated findings source (e.g. a repo audit) into well-formed, prioritized, PACED Linear tickets that feed the loop. Maintains a target queue depth (never floods); routes risky findings (critical/high + security/auth/money) to investigate-first, contained ones to the implementer. Files tickets only — never touches code.
+description: One pass of the manager agent — the single paced gate from findings sources (audit / qa ledger / research ledger) into Linear. Per-source buckets (each source = its own label + depth, so none starves another); routes risky findings (critical/high + security/auth/money) to investigate-first, contained ones to the implementer. Files tickets only — never touches code.
 ---
 
 You are the manager agent. This is one pass. You convert a curated **findings source** (an
@@ -28,13 +28,20 @@ QUICK_WIN_LABEL=$(jq -r '.linear.labels.quick_win // "quick-win"' "$CONFIG_FILE"
 STATE_TODO=$(jq -r '.linear.states.todo // "agent-todo"' "$CONFIG_FILE")
 SLACK_WEBHOOK_URL=$(jq -r '.slack.manager_webhook_url // .slack.quickwins_webhook_url // empty' "$CONFIG_FILE")
 
-# manager config
-TARGET_DEPTH=$(jq -r '.manager.target_queue_depth // 5' "$CONFIG_FILE")
-INVESTIGATE_WIP=$(jq -r '.manager.investigate_wip // 3' "$CONFIG_FILE")
-AUDIT_LABEL=$(jq -r '.manager.audit_label // "audit"' "$CONFIG_FILE")
+# manager config — PER-SOURCE BUCKETS. Each source gets its own Linear label = its own bucket,
+# paced to its own depth, so e.g. a 130-item audit backlog can't starve a live qa regression.
+DEFAULT_DEPTH=$(jq -r '.manager.target_queue_depth // 5' "$CONFIG_FILE")     # fallback per-source agent depth
+DEFAULT_WIP=$(jq -r '.manager.investigate_wip // 3' "$CONFIG_FILE")         # fallback per-source investigate WIP
+AUDIT_LABEL=$(jq -r '.manager.audit_label // "audit"' "$CONFIG_FILE")       # kept for back-compat (audit source default label)
 RISKY_RE=$(jq -r '.manager.risky_categories_regex // "IDOR|access.?control|auth|identity|spoof|takeover|currency|money|price|unit.?math|injection|secret|token|SSRF|XSS|CSRF|PII"' "$CONFIG_FILE")
-# sources: array of {name, findings_json, format, report_md}
-sources() { jq -c '.manager.sources // [] | .[]' "$CONFIG_FILE"; }
+# sources: array of {name, findings_json, format, label, target_depth, investigate_wip, report_md}
+#   label         → the source's bucket label (defaults to .name). The `audit` source defaults to $AUDIT_LABEL.
+#   target_depth  → max open agent-route tickets for THIS source (defaults to DEFAULT_DEPTH)
+#   investigate_wip → max open investigate-route tickets for THIS source (defaults to DEFAULT_WIP)
+sources()   { jq -c '.manager.sources // [] | .[]' "$CONFIG_FILE"; }
+src_label() { echo "$1" | jq -r 'if .name=="audit" then (.label // "audit") else (.label // .name) end'; }
+src_depth() { echo "$1" | jq -r --argjson d "$DEFAULT_DEPTH" '.target_depth // $d'; }
+src_wip()   { echo "$1" | jq -r --argjson w "$DEFAULT_WIP" '.investigate_wip // $w'; }
 ```
 
 If `.manager.sources` is empty, exit cleanly: `manager-run: no findings sources configured — nothing to manage.`
@@ -87,7 +94,7 @@ Path: `$STATE_DIR/manager-state.json`
 ```json
 {
   "filed": {
-    "<finding-key>": { "ticket": "<EX-id>", "route": "agent|investigate|dedup", "severity": "...", "filed_at": "..." }
+    "<finding-key>": { "ticket": "<JIN-id>", "route": "agent|investigate|dedup", "severity": "...", "filed_at": "..." }
   },
   "history": [ { "ts": "...", "finding": "<key>", "ticket": "<id>", "route": "...", "event": "filed|deduped" } ]
 }
@@ -113,6 +120,13 @@ For each source from `sources()`: read its `findings_json`, normalize by `format
   finding-key = the ledger's own `key` (`<flow_id>::<surface>::<signature>`). The `repo` for
   svc-label / scope purposes is the finding's `suspected_svc` (best-effort; qa findings are
   cross-repo by surface — if it doesn't map to a `repos[]` entry, still process it, just omit svc).
+- **`research-v1`** — the research-run findings ledger: `{source, updated_at, findings[]}` where each
+  finding is `{key, repo, mode, category, severity, quick_win, title, what, where[], why,
+  suggested_fix, acceptance[], first_seen, last_seen, last_cell, occurrences}`. Already
+  stable/deduped recurring-drift (`occurrences=N`). finding-key = the ledger's own `key`
+  (`<repo>::<mode>::<signature>`). `repo` maps to a `repos[]` entry for the `svc:` label. `quick_win`
+  (boolean) drives the `quick-win` label; severity is medium (hardening/architecture) or low
+  (hygiene/doc-sync). Mostly `agent`-route (contained Improvements) unless the category is risky.
 
 If the source file is missing/empty, skip that source (qa may not have run yet). Skip an audit
 finding whose `repo` is not in `repos[]`; do NOT skip a qa finding for that reason (its repo is a
@@ -125,20 +139,26 @@ For each finding whose `finding-key` is NOT in `state.filed`:
 - **Priority**: critical→1 (Urgent), high→2 (High), medium→3 (Medium), low→4 (Low).
 - **Sort** within each stream: priority asc (Urgent first), then `confidence` (high first), then severity.
 
-**STEP 3. Pace — compute how many to file per stream this fire.**
+**STEP 3. Pace — PER-SOURCE BUCKETS. Compute slots per (source × stream) this fire.**
 
-Count the manager's OWN currently-open tickets per stream (these are the depth gauges):
+Each source is its own bucket, paced independently — so audit, qa, and research never compete for
+the same slots, and a live qa regression never waits behind the audit backlog. For EACH source
+(its label = `src_label`, depths = `src_depth` / `src_wip`):
+
 ```
-agent stream open    = list_issues(team, label=$AUDIT_LABEL, label=$AGENT_LABEL, state=$STATE_TODO) | length
-investigate stream   = list_issues(team, label=$AUDIT_LABEL, label=$INVESTIGATE_LABEL, not Done/Canceled) | length
+this source's agent open      = list_issues(team, label=<src_label>, state=$STATE_TODO) | filter carries $AGENT_LABEL      | length
+this source's investigate open = list_issues(team, label=<src_label>, not Done/Canceled) | filter carries $INVESTIGATE_LABEL | length
 ```
-(Linear filters one label per call — query by `$AUDIT_LABEL`, then client-side count those also
-carrying `$AGENT_LABEL` vs `$INVESTIGATE_LABEL`, and only those in `$STATE_TODO` / not-terminal.)
+(Linear filters one label per call — query by `<src_label>`, then client-side split by `$AGENT_LABEL`
+vs `$INVESTIGATE_LABEL` and state.)
 
-- `agent` slots to fill = `max(0, TARGET_DEPTH - agent_stream_open)`.
-- `investigate` slots to fill = `max(0, INVESTIGATE_WIP - investigate_stream_open)`.
+- this source's `agent` slots      = `max(0, src_depth - source_agent_open)`.
+- this source's `investigate` slots = `max(0, src_wip   - source_investigate_open)`.
 
-If both are 0 → the loop is busy; file nothing, post nothing (or a heartbeat if >4h). Exit.
+A finding is filed against ITS source's bucket only (an audit finding can't borrow qa's slots).
+If EVERY source's both slot-counts are 0 → all buckets full; file nothing, post nothing (or a
+heartbeat if >4h). Exit. Otherwise STEP 4 fills each source's open slots from that source's
+sorted findings.
 
 **STEP 4. Dedup + file, up to the slot counts, highest-priority first.**
 
@@ -147,15 +167,15 @@ For each finding to file (take the top `slots` from each stream's sorted list):
    bodies. A plausible match → record `state.filed[key] = {route:"dedup", ticket:<existing>}`,
    history `deduped`, do NOT file, and this does NOT consume a slot (try the next finding).
 2. **File:**
-   - title: `[audit] <repo>: <title…>` (audit-v1) OR `[qa] <flow_id>×<surface>: <reason…>` (qa-v1), trimmed to ~80 chars
+   - title: prefix with the source — `[<source-name>] <repo>: <title…>` (audit) / `[qa] <flow_id>×<surface>: <reason…>` (qa) / `[research] <repo>: <title…>` (research), trimmed to ~80 chars
    - team `$LINEAR_TEAM`; project `$AGENT_BACKLOG_PROJECT_ID` if set; assignee `$ASSIGNEE_EMAIL`; priority per STEP 2.
-   - labels: agent-route → `[$AGENT_LABEL, $AUDIT_LABEL]` + `svc: <name>` if it exists (+ `$QUICK_WIN_LABEL` if the
-     finding is clearly small/contained); investigate-route → `[$INVESTIGATE_LABEL, $AUDIT_LABEL]` + `svc: <name>` if it exists.
+   - labels: **always the source's bucket label** (`<src_label>`) + the route label. agent-route → `[$AGENT_LABEL, <src_label>]` + `svc: <name>` if it exists (+ `$QUICK_WIN_LABEL` if the finding is small/contained — audit uses its severity, qa/research carry a `quick_win` boolean); investigate-route → `[$INVESTIGATE_LABEL, <src_label>]` + `svc: <name>` if it exists. The source label is what STEP 3 counts for that bucket's pacing — it MUST be on every ticket.
    - body:
      ```
      **Source:** <source name>. Severity: <severity> · Category: <category>
      <audit-v1:> Confidence: <confidence> · **Location:** `<file>` · **Impact:** <impact> · **Verifier note:** <verifierNote>
      <qa-v1:> Flow: `<flow_id>` × `<surface>` · **Failing <occurrences>× since <first_seen>** (last <last_run_id>) · **Reason:** <reason> · **Evidence:** <endpoint> → <failed_validation>; response excerpt: <≤2KB>
+     <research-v1:> Cell: `<repo>:<mode>` · Category: <category> · **What:** <what> · **Where:** <where[]> · **Why:** <why> · **Suggested fix:** <suggested_fix> · **Acceptance:** <acceptance[]>
 
      <if investigate-route:> Routed to investigate-first (risky: <severity>/<category>). /investigate-run will analyze read-only; /unblock surfaces options to you before any code change.
      <if agent-route:> Contained finding — implementer may pick up and open a fix PR (human-go gate before merge).
