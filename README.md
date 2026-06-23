@@ -110,6 +110,11 @@ alone any time with `./bin/configure.sh my-project`.
 > **Nothing about pitcrew lives in your code repos**, and nothing about your code lives in
 > pitcrew. The only link is the `repos[].path` values in `~/.claude/agent-loop/<project>/config.json`.
 
+**On OpenAI Codex instead of (or alongside) Claude Code?** The skill bodies are harness-agnostic —
+`./bin/install-codex.sh` symlinks them into `~/.codex/prompts/` and shares the same config, and
+`bin/pitcrew-codex.sh` runs a headless pass from cron (Codex has no `/loop`). See
+[`docs/CODEX.md`](docs/CODEX.md).
+
 ---
 
 ## Configure
@@ -208,8 +213,10 @@ pitcrew/
 ├── LICENSE                       # MIT
 ├── CONTRIBUTING.md
 ├── bin/
-│   ├── install.sh                # symlinks skills into Claude Code + runs the wizard
-│   └── configure.sh              # interactive config wizard (re-runnable)
+│   ├── install.sh                # Claude Code: symlinks skills + runs the wizard
+│   ├── install-codex.sh          # Codex: symlinks skills into ~/.codex/prompts + shares config
+│   ├── pitcrew-codex.sh          # Codex: run one headless pass (cron fires this)
+│   └── configure.sh              # interactive config wizard (re-runnable, harness-agnostic)
 ├── skills/
 │   └── <slug>/SKILL.md           # the 12 crew members
 └── references/
