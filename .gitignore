@@ -1,0 +1,16 @@
+# pitcrew is just skills + docs + an installer. Runtime config and state live
+# under ~/.claude/agent-loop/<project>/ (OUTSIDE this repo) and are never committed.
+
+# OS / editor noise
+.DS_Store
+*.swp
+*~
+
+# never let a real filled-in config sneak in
+config.json
+**/config.json
+!references/config.example.json
+
+# local scratch
+*.log
+*.tmp
