@@ -12,6 +12,11 @@ service — just skills, a coordination board (Linear, optional), and your own m
 > keeps moving because the crew handles the stops — and the dangerous moves (shipping to prod,
 > deciding scope) are explicitly armed or routed to a human, never assumed.
 
+<p align="center">
+  <img src="assets/pinned-loops.png" alt="The twelve pitcrew skills running as pinned /loop sessions in Claude Code" width="420">
+</p>
+<p align="center"><em>The whole crew on duty: each member is a <a href="https://claude.com/claude-code">Claude Code</a> agent running as a pinned <code>/loop</code> session on its own cadence.</em></p>
+
 ---
 
 ## The crew
