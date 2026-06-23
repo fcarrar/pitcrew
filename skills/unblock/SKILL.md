@@ -68,14 +68,14 @@ Required for /unblock:
 
 ═══ PRIME DIRECTIVE ═══
 
-**LINEAR BINDING (resilience layer — read `references/LINEAR-ACCESS.md`).** Before any Linear call, resolve the live binding: if `mcp__linear-server__list_teams` is available use `LINEAR=mcp__linear-server`; else if `mcp__claude_ai_Linear__list_teams` is available use `LINEAR=mcp__claude_ai_Linear` (the two families are operation-compatible — same tool names + args after the prefix). Confirm `<LINEAR>__list_teams` includes the configured team (matching `linear.team_id` from config); a different workspace counts as DOWN. Everywhere this file writes `mcp__linear-server__X`, call `<LINEAR>__X` with the live prefix. If NEITHER family is live (or only a wrong-workspace one is): log one line `<skill>: Linear unreachable — degraded mode` and exit cleanly (a Linear-write agent does no writes; an acting agent does only Linear-independent, read-grounded work). Never bail blind, never write to the wrong workspace.
+**LINEAR BINDING (resilience layer — read `references/LINEAR-ACCESS.md`).** Before any Linear call, resolve the live binding by introspecting the tools available to you THIS run: pick the Linear MCP family by capability — it exposes `list_teams`/`get_issue`/`save_issue`/… — not by a fixed name. Claude Code exposes it as `mcp__linear-server__*` or `mcp__claude_ai_Linear__*`; Codex exposes the `linear` server from `~/.codex/config.toml`. Set `LINEAR` to whichever prefix is live (all are operation-compatible — same ops + args after the prefix; a harness may join prefix and op differently, so call the actual tool name it exposes for each op). Confirm `<LINEAR>__list_teams` includes the configured team (matching `linear.team_id` from config); a different workspace counts as DOWN. Everywhere this file writes `mcp__linear-server__X`, call `<LINEAR>__X` with the live prefix. If NEITHER family is live (or only a wrong-workspace one is): log one line `<skill>: Linear unreachable — degraded mode` and exit cleanly (a Linear-write agent does no writes; an acting agent does only Linear-independent, read-grounded work). Never bail blind, never write to the wrong workspace.
 
 **DIRECTED TARGET (optional on-demand arg — read `references/DIRECTED-TARGET.md`).** Scan the invocation args: an arg matching a Linear issue URL (`linear.app/<ws>/issue/<ID>`), a bare ticket id (`<ticket_prefix>-<n>`), a GitHub PR URL (`github.com/<org>/<repo>/pull/<n>`), or a bare PR ref (`<repo>#<n>`) is a TARGET (the PROJECT is then the first non-target arg, else default.txt — so `/unblock <url>` works with no project). If a TARGET is given: confirm it's in scope (configured team / `repos[]`) — out of scope → log one line + exit — then operate ONLY on it (triage/unblock that specific ticket instead of searching the blocked queue, then exit). Directed mode MAY act on a target auto mode would skip (state/label/sort), but EVERY safety HARD RULE still holds. No target → normal auto mode, unchanged.
 
 
 **This file is the complete instruction set for this run.** Self-contained, deterministic, no external context needed.
 
-- DO NOT pause to ask the operator for any clarification that isn't a structured `AskUserQuestion` call. The whole point of this skill is the structured Q&A handoff.
+- DO NOT pause to ask the operator for any clarification that isn't a structured `AskUserQuestion` call (or its plain-text fallback — see STEP 6). The whole point of this skill is the structured Q&A handoff.
 - DO NOT trust conversation memory. State lives in Linear + `unblock-state.json` — re-read every fire.
 - DO NOT touch tickets that aren't in `$STATE_BLOCKED` with label `$AGENT_LABEL`. Other states/labels are NOT yours to triage.
 - If genuinely stuck (Linear down, ticket malformed), log ONE line, exit cleanly. The next fire will retry.
@@ -213,6 +213,8 @@ jq --arg t "<TICKET-id>" --arg ts "$NOW" \
 If a later fire hits STEP 0 while this fire is between STEPs 5 and 9, it'll see the lock and exit cleanly.
 
 **STEP 6. Surface the shape-appropriate question via AskUserQuestion.**
+
+> **Harness note (AskUserQuestion fallback).** `AskUserQuestion` is a Claude Code tool. If it isn't available this fire (e.g. under Codex), present the SAME question as plain text instead: print the prompt, the 2–4 options as a numbered list, plus an `Other (free-form)` choice — then read the operator's typed reply and map it to the chosen option (a number, an option label, or free text). The lock, the one-question-in-flight rule, and the answer handling below are identical — only the asking primitive changes.
 
 Pick ONE of the templates below by shape. Each is an `AskUserQuestion` call with 2-4 structured options. You can always pick "Other" for a free-form answer.
 
