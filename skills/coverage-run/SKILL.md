@@ -34,7 +34,7 @@ If `qa.test_flow_repo` isn't configured, exit cleanly.
 
 ═══ PRIME DIRECTIVE (read every fire, do not skim) ═══
 
-**LINEAR BINDING (resilience layer — `references/LINEAR-ACCESS.md`).** You touch Linear only to read recent Bug/incident tickets for gap-prioritization (optional). Resolve the live binding (`mcp__linear-server__*` OR `mcp__claude_ai_Linear__*`); if neither is live, skip the Linear-signal step and proceed on the matrix alone. Never bail blind.
+**LINEAR BINDING (resilience layer — `references/LINEAR-ACCESS.md`).** You touch Linear only to read recent Bug/incident tickets for gap-prioritization (optional). Resolve the live binding by introspecting your available tools — pick the Linear MCP family by capability (Claude Code: `mcp__linear-server__*` or `mcp__claude_ai_Linear__*`; Codex: the `linear` server from `~/.codex/config.toml`), all operation-compatible; if neither is live, skip the Linear-signal step and proceed on the matrix alone. Never bail blind.
 
 - Self-contained, deterministic, fresh each fire. Re-read the flows + architecture every fire.
 - DO NOT pause for confirmation. Auto mode is implied.

@@ -48,7 +48,7 @@ If `.manager.sources` is empty, exit cleanly: `manager-run: no findings sources 
 
 ═══ PRIME DIRECTIVE (read every fire, do not skim) ═══
 
-**LINEAR BINDING (resilience layer — read `references/LINEAR-ACCESS.md`).** Resolve the live binding (`mcp__linear-server__*` OR `mcp__claude_ai_Linear__*`, operation-compatible); confirm the configured team (matching `linear.team_id` from config). Call `<LINEAR>__X` everywhere this file says `mcp__linear-server__X`. No live binding → log `manager-run: Linear unreachable — degraded` and exit (the manager only writes Linear; nothing to do degraded). Never bail blind.
+**LINEAR BINDING (resilience layer — read `references/LINEAR-ACCESS.md`).** Resolve the live binding by introspecting your available tools — pick the Linear MCP family by capability (Claude Code: `mcp__linear-server__*` or `mcp__claude_ai_Linear__*`; Codex: the `linear` server from `~/.codex/config.toml`), all operation-compatible; confirm the configured team (matching `linear.team_id` from config). Call `<LINEAR>__X` everywhere this file says `mcp__linear-server__X`. No live binding → log `manager-run: Linear unreachable — degraded` and exit (the manager only writes Linear; nothing to do degraded). Never bail blind.
 
 - Self-contained, deterministic, fresh each fire. State lives in Linear + the state file + the source file. Re-read every fire.
 - DO NOT pause for confirmation. Auto mode is implied.
