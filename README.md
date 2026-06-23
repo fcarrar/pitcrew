@@ -82,30 +82,45 @@ other — the board is the only shared state.
 Requirements: [Claude Code](https://claude.com/claude-code), `gh` (authenticated), `jq`. A Linear
 MCP connection is optional (see *Configure* below).
 
+**Clone pitcrew somewhere, then run the installer from inside the clone.** `install.sh` wires
+*pitcrew itself* into Claude Code — it does **not** touch your project repos. Those stay wherever
+they already are; you just point the config at them (the wizard does this for you).
+
 ```bash
-git clone https://github.com/<you>/pitcrew.git
-cd pitcrew
-./bin/install.sh my-project        # default project name: "example"
+git clone https://github.com/fcarrar/pitcrew.git
+cd pitcrew                          # ← run install.sh from in here, not from your code folder
+./bin/install.sh my-project         # default project name: "example"
 ```
 
 The installer:
-1. Symlinks each `skills/<slug>/SKILL.md` → `~/.claude/commands/<slug>.md` (so `/research-run` etc. resolve in Claude Code).
-2. Creates `~/.claude/agent-loop/my-project/` with `state/`, and seeds `config.json` from the example.
-3. Drops `TOPOLOGY.md` / `LINEAR-ACCESS.md` / `DIRECTED-TARGET.md` alongside the config.
-4. Initializes a local `lessons.md` (per-operator corrections the skills read each fire).
-5. Sets `my-project` as the default in `~/.claude/agent-loop/default.txt`.
+1. **Symlinks** each `skills/<slug>/SKILL.md` → `~/.claude/commands/<slug>.md`, so `/research-run` etc. resolve in Claude Code.
+2. Creates the loop's **runtime dir** `~/.claude/agent-loop/my-project/` with `state/`.
+3. **Runs the config wizard** (`bin/configure.sh`) — an interactive Q&A that sets up your GitHub identity, Linear (optional), the repos the crew may operate on, and Slack webhooks, then writes `config.json`. (Pass `--no-wizard`, or pipe a non-interactive install, to skip it and drop the example to edit by hand.)
+4. Drops `TOPOLOGY.md` / `LINEAR-ACCESS.md` / `DIRECTED-TARGET.md` alongside the config.
+5. Initializes a local `lessons.md` (per-operator corrections the skills read each fire) and sets the default project.
 
-It's idempotent and won't clobber an existing `config.json` or `lessons.md`.
+It's idempotent and won't clobber an existing `config.json` or `lessons.md`. Re-run the wizard
+alone any time with `./bin/configure.sh my-project`.
+
+> **Nothing about pitcrew lives in your code repos**, and nothing about your code lives in
+> pitcrew. The only link is the `repos[].path` values in `~/.claude/agent-loop/<project>/config.json`.
 
 ---
 
 ## Configure
 
-Everything project-specific lives in **one file**: `~/.claude/agent-loop/<project>/config.json`
-(seeded from [`references/config.example.json`](references/config.example.json)). The skills are
-generic — they read `repos[]`, `linear.*`, `github.*`, etc. from config and adapt.
+Everything project-specific lives in **one file**: `~/.claude/agent-loop/<project>/config.json`.
+The **install wizard fills it for you** (`./bin/configure.sh <project>` to re-run); this section is
+what it's setting up, and what to tweak by hand afterward. The skills are generic — they read
+`repos[]`, `linear.*`, `github.*`, etc. from this file and adapt.
 
-Minimum to get going:
+The wizard asks for:
+- **GitHub** — your username (auto-detected from `gh` if available) and the org that hosts your repos.
+- **Linear** (optional) — workspace slug, team name + `team_id`, ticket prefix, your assignee email.
+- **Repos** — point it at the folder holding your checkouts; it finds the git repos and lets you pick (inferring branch + language), or add them by hand.
+- **Slack** (optional) — webhook URLs for notifications, and your timezone.
+
+The resulting file looks like:
 
 ```jsonc
 {
@@ -188,7 +203,8 @@ pitcrew/
 ├── LICENSE                       # MIT
 ├── CONTRIBUTING.md
 ├── bin/
-│   └── install.sh                # symlinks skills + seeds the runtime config
+│   ├── install.sh                # symlinks skills into Claude Code + runs the wizard
+│   └── configure.sh              # interactive config wizard (re-runnable)
 ├── skills/
 │   └── <slug>/SKILL.md           # the 12 crew members
 └── references/

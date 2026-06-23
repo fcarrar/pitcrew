@@ -1,10 +1,14 @@
 #!/bin/bash
-# pitcrew installer — wire the agent-loop skills onto your machine.
+# pitcrew installer — RUN THIS FROM INSIDE THE pitcrew CLONE.
+#
+# It wires *pitcrew itself* into Claude Code. It does NOT touch your project
+# repos — those are only referenced by path inside the config (set up in step 3).
 #
 # What it does:
-#   1. Symlinks each skill (skills/<slug>/SKILL.md) → ~/.claude/commands/<slug>.md
-#   2. Creates ~/.claude/agent-loop/<project>/ runtime dir with state/
-#   3. Copies references/config.example.json → ~/.claude/agent-loop/<project>/config.json (only if missing)
+#   1. Symlinks each pitcrew skill (skills/<slug>/SKILL.md) → ~/.claude/commands/<slug>.md
+#   2. Creates the loop's runtime dir ~/.claude/agent-loop/<project>/ with state/
+#   3. Configures the project — runs the interactive config wizard (bin/configure.sh),
+#      which asks for your tracker / repos / webhooks and writes config.json
 #   4. Copies references/{TOPOLOGY,LINEAR-ACCESS,DIRECTED-TARGET}.md → the project runtime dir
 #   5. Initializes ~/.claude/agent-loop/<project>/lessons.md (empty if missing)
 #   6. Writes <project> to ~/.claude/agent-loop/default.txt
@@ -12,11 +16,22 @@
 # Re-run safe (idempotent). Won't clobber an existing config.json or lessons.md.
 #
 # Usage (run from the repo root or its bin/ dir):
-#   ./bin/install.sh [project-name]      # default project-name: "example"
+#   ./bin/install.sh [project-name] [--no-wizard]
+#     project-name  default: "example"
+#     --no-wizard   skip the interactive wizard; just drop config.example.json to edit by hand
 
 set -euo pipefail
 
-PROJECT="${1:-example}"
+NO_WIZARD=0
+PROJECT=""
+for arg in "$@"; do
+  case "$arg" in
+    --no-wizard) NO_WIZARD=1 ;;
+    -*) echo "Unknown flag: $arg" >&2; exit 2 ;;
+    *) [ -z "$PROJECT" ] && PROJECT="$arg" ;;
+  esac
+done
+PROJECT="${PROJECT:-example}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMMANDS_DIR="$HOME/.claude/commands"
 PROJECT_DIR="$HOME/.claude/agent-loop/$PROJECT"
@@ -39,10 +54,13 @@ SKILLS=(
 )
 
 echo "=== pitcrew installer ==="
-echo "  repo root:    $REPO_ROOT"
-echo "  commands dir: $COMMANDS_DIR"
-echo "  project:      $PROJECT"
-echo "  project dir:  $PROJECT_DIR"
+echo "  This wires pitcrew (this repo) into Claude Code. Your project repos are"
+echo "  untouched — they're only referenced by path in the config."
+echo
+echo "  pitcrew repo:  $REPO_ROOT"
+echo "  commands dir:  $COMMANDS_DIR   (where the 12 skills get symlinked)"
+echo "  project:       $PROJECT"
+echo "  runtime dir:   $PROJECT_DIR   (config + state live here, never in this repo)"
 echo
 
 # Sanity: are we actually in a pitcrew checkout?
@@ -87,19 +105,22 @@ mkdir -p "$PROJECT_DIR/state"
 echo "  = $PROJECT_DIR/state/"
 echo
 
-# Step 3: config.json
-echo "[3/6] Seeding config.json..."
+# Step 3: configure the project (interactive wizard, or copy the example)
+echo "[3/6] Configuring project '$PROJECT'..."
 if [ -f "$PROJECT_DIR/config.json" ]; then
-  echo "  = already exists at $PROJECT_DIR/config.json — not overwriting"
-  echo "    (delete it first and re-run to reset)"
-else
+  echo "  = config.json already exists — leaving it untouched."
+  echo "    Re-run the wizard any time:  ./bin/configure.sh $PROJECT"
+elif [ "$NO_WIZARD" = 1 ] || [ ! -t 0 ]; then
   cp "$REPO_ROOT/references/config.example.json" "$PROJECT_DIR/config.json"
-  echo "  + copied from references/config.example.json"
-  echo "    ! EDIT IT NOW: $PROJECT_DIR/config.json"
-  echo "      - Set repos[*].path to your local checkouts"
-  echo "      - Set github.reviewer_login + github.org"
-  echo "      - Set linear.* (team_id, assignee_email) or linear.use=false"
-  echo "      - Set slack.* webhooks (or leave empty)"
+  echo "  + copied references/config.example.json (wizard skipped)."
+  echo "    ! Edit it by hand: $PROJECT_DIR/config.json  (or run ./bin/configure.sh $PROJECT)"
+else
+  echo "  Launching the config wizard — answers your tracker / repos / webhooks."
+  echo
+  if ! "$REPO_ROOT/bin/configure.sh" "$PROJECT"; then
+    echo "  (wizard exited early — copying the example so you can edit by hand)"
+    [ -f "$PROJECT_DIR/config.json" ] || cp "$REPO_ROOT/references/config.example.json" "$PROJECT_DIR/config.json"
+  fi
 fi
 echo
 
@@ -189,8 +210,9 @@ echo
 echo "=== Install complete ==="
 echo
 echo "Next steps:"
-echo "  1. Open $PROJECT_DIR/config.json and fill in your real values"
-echo "     (see references/SETUP.md for the field-by-field walkthrough)."
+echo "  1. Review $PROJECT_DIR/config.json (the wizard filled the basics)."
+echo "     Re-run the wizard any time:  ./bin/configure.sh $PROJECT"
+echo "     Field-by-field reference:    references/SETUP.md"
 echo "  2. Smoke one skill to validate the config:  /research-run $PROJECT"
 echo "  3. Launch the loops you want from Claude Code (each on its own cadence):"
 echo "       /loop 15min /implementer-run"
