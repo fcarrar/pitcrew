@@ -96,20 +96,23 @@ echo
 # Step 3: scheduling (Codex has no /loop → cron)
 echo "[3/3] Scheduling — Codex has no /loop, so use cron + bin/pitcrew-codex.sh."
 echo
-echo "  Paste into \`crontab -e\` (adjust cadences; logs to ~/.codex/logs/):"
+echo "  Paste into \`crontab -e\` (adjust cadences; logs to ~/.codex/logs/)."
+echo "  Linear-coupled skills need network, so widen their sandbox:"
 echo "  ----------------------------------------------------------------------"
 RUNNER="$REPO_ROOT/bin/pitcrew-codex.sh"
+NET="CODEX_SANDBOX=danger-full-access"
 cat <<CRON
-  */30 *  * * *  $RUNNER research-run $PROJECT     >> ~/.codex/logs/research-run.log 2>&1
-  0    */2 * * *  $RUNNER qa-run $PROJECT           >> ~/.codex/logs/qa-run.log 2>&1
-  */15 *  * * *  $RUNNER implementer-run $PROJECT   >> ~/.codex/logs/implementer-run.log 2>&1
-  */15 *  * * *  $RUNNER reviewer-run $PROJECT      >> ~/.codex/logs/reviewer-run.log 2>&1
-  0    *  * * *  $RUNNER manager-run $PROJECT       >> ~/.codex/logs/manager-run.log 2>&1
+  */30 *  * * *  $RUNNER research-run $PROJECT              >> ~/.codex/logs/research-run.log 2>&1
+  0    */2 * * *  $RUNNER qa-run $PROJECT                    >> ~/.codex/logs/qa-run.log 2>&1
+  */15 *  * * *  $NET $RUNNER implementer-run $PROJECT   >> ~/.codex/logs/implementer-run.log 2>&1
+  */15 *  * * *  $NET $RUNNER reviewer-run $PROJECT      >> ~/.codex/logs/reviewer-run.log 2>&1
+  0    *  * * *  $NET $RUNNER manager-run $PROJECT       >> ~/.codex/logs/manager-run.log 2>&1
 CRON
 echo "  ----------------------------------------------------------------------"
 echo
 echo "=== Install complete ==="
 echo "  • research-run + qa-run need no Linear MCP (they write ledgers) — run as-is."
-echo "  • Linear-coupled skills need a Linear MCP entry in ~/.codex/config.toml and a"
-echo "    Codex tool-name branch in the LINEAR BINDING block — see docs/CODEX.md."
+echo "  • Linear-coupled skills: add a Linear MCP entry to ~/.codex/config.toml"
+echo "    (see references/codex-config.example.toml). The binding block already detects it."
+echo "    Run those with CODEX_SANDBOX=danger-full-access (they need network). See docs/CODEX.md."
 echo "  • Smoke one pass now:   ./bin/pitcrew-codex.sh research-run $PROJECT"
