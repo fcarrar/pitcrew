@@ -1,12 +1,14 @@
 # 🏎️ pitcrew
 
-**A pit crew for your codebase.** Twelve [Claude Code](https://claude.com/claude-code) skills that
+**A pit crew for your codebase.** Twelve skills — for [Claude Code](https://claude.com/claude-code) or [OpenAI Codex](https://github.com/openai/codex) — that
 run as long-lived, self-coordinating loops — scouting your repos for issues, opening and reviewing
 PRs, testing them, shipping merged work to production, and keeping the backlog moving while you're
 off doing something else.
 
 Point it at *your* project with a single config file. No bespoke infrastructure, no hosted
 service — just skills, a coordination board (Linear, optional), and your own machine.
+
+The **same skill files run on [Claude Code](https://claude.com/claude-code) or [OpenAI Codex](https://github.com/openai/codex)** — one config, both harnesses. See [docs/CODEX.md](docs/CODEX.md).
 
 > Like a real pit crew, every member has one job and stays in their lane. The car (your codebase)
 > keeps moving because the crew handles the stops — and the dangerous moves (shipping to prod,
@@ -78,7 +80,7 @@ Full handoff flow, routing rules, and "what NOT to confuse" live in
                                                                     └── you decide (/unblock)                  and files incidents
 ```
 
-Every stage is one skill, fired on its own cadence by Claude Code's `/loop`. They never block each
+Every stage is one skill, fired on its own cadence — Claude Code's `/loop`, or cron under Codex. They never block each
 other — the board is the only shared state.
 
 ---
@@ -214,6 +216,8 @@ pitcrew/
 ├── README.md
 ├── LICENSE                       # MIT
 ├── CONTRIBUTING.md
+├── docs/
+│   └── CODEX.md                  # running pitcrew on OpenAI Codex
 ├── bin/
 │   ├── install.sh                # Claude Code: symlinks skills + runs the wizard
 │   ├── install-codex.sh          # Codex: symlinks skills into ~/.codex/prompts + shares config
@@ -226,7 +230,8 @@ pitcrew/
     ├── config.example.json       # the one file you fill in (placeholder values)
     ├── TOPOLOGY.md               # roles, routing, handoffs — source of truth
     ├── LINEAR-ACCESS.md          # binding-agnostic + degraded-mode contract
-    └── DIRECTED-TARGET.md        # the on-demand "point at one ticket/PR" mode
+    ├── DIRECTED-TARGET.md        # the on-demand "point at one ticket/PR" mode
+    └── codex-config.example.toml  # Codex: ~/.codex/config.toml Linear MCP snippet
 ```
 
 Runtime config and state live under `~/.claude/agent-loop/<project>/`, **outside this repo** — they
