@@ -51,6 +51,7 @@ SKILLS=(
   "releaser-run"
   "manager-run"
   "coverage-run"
+  "dev-verify-run"
 )
 
 echo "=== pitcrew installer ==="
@@ -58,7 +59,7 @@ echo "  This wires pitcrew (this repo) into Claude Code. Your project repos are"
 echo "  untouched — they're only referenced by path in the config."
 echo
 echo "  pitcrew repo:  $REPO_ROOT"
-echo "  commands dir:  $COMMANDS_DIR   (where the 12 skills get symlinked)"
+echo "  commands dir:  $COMMANDS_DIR   (where the 13 skills get symlinked)"
 echo "  project:       $PROJECT"
 echo "  runtime dir:   $PROJECT_DIR   (config + state live here, never in this repo)"
 echo

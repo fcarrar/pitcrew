@@ -4,7 +4,7 @@
 >
 > Copy this file to `~/.claude/agent-loop/<PROJECT_NAME>/TOPOLOGY.md` and customize for your stack. The skill family below is the canonical starting set — adapt as needed.
 
-## The twelve skills
+## The thirteen skills
 
 | Skill | Role (one line) | Reads | Writes |
 |---|---|---|---|
@@ -20,6 +20,7 @@
 | **`/releaser-run`** *(outward)* | Ships already-merged work dev→prod as versioned releases, smoke-checks each stage, auto-rolls-back on a prod break. Per-repo armed (`release.autonomy`). Agent-authored work only by default. | default branch, GitHub, deploy mechanisms | deploy triggers + release tickets |
 | **`/manager-run`** *(intake)* | Turns a curated findings source (audit / qa ledger) into PACED, prioritized, routed tickets. Maintains a target queue depth; risky→`investigate`, contained→`agent`. Files tickets only. | findings sources | files (paced) tickets |
 | **`/coverage-run`** *(producer)* | Finds capability×surface coverage gaps in the test-flow repo, opens grounded flow PRs (reviewer+validator gate). Proactive complement to the test-first rule. | the flow matrix + arch docs | opens test-flow PRs (paced) |
+| **`/dev-verify-run`** *(producer)* | Post-deploy verifier: tests merged PRs that are LIVE on dev — plans targeted flows (diff→capability) and runs ONLY those against the live dev env. Failures → verify ledger → manager. Doesn't deploy or gate. | merged PRs + live dev | writes verify ledger |
 
 ## The state machine
 
@@ -105,7 +106,7 @@ review  validator                      /unblock asks
 
 1. Pick a clear distinct verb for the name (avoid noun collisions like "research"). Conform to `/<verb>-run` for autonomous skills, `/<verb>` for human-in-the-loop.
 2. Decide its routing label (if it needs one). Add to `config.json`'s `labels` + `label_ids` and to other skills' skip lists.
-3. Add a row to this file's "The twelve skills" table.
+3. Add a row to this file's "The thirteen skills" table.
 4. Cross-reference in each skill that hands off to or receives from the new one.
 
 ## Project-specific config

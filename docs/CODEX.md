@@ -33,6 +33,7 @@ the config is reused — one config, both harnesses.
 */30 *  * * *  /path/to/pitcrew/bin/pitcrew-codex.sh research-run my-project   >> ~/.codex/logs/research-run.log 2>&1
 0    */2 * * *  /path/to/pitcrew/bin/pitcrew-codex.sh qa-run my-project         >> ~/.codex/logs/qa-run.log 2>&1
 */15 *  * * *  /path/to/pitcrew/bin/pitcrew-codex.sh implementer-run my-project >> ~/.codex/logs/implementer-run.log 2>&1
+*/15 *  * * *  /path/to/pitcrew/bin/pitcrew-codex.sh dev-verify-run my-project  >> ~/.codex/logs/dev-verify-run.log 2>&1
 ```
 
 `pitcrew-codex.sh` invokes `codex exec` with the skill body on **stdin** (the skill's `---`
@@ -74,7 +75,7 @@ The rest coordinate through Linear. To run them on Codex:
 A one-skill spike confirmed the thesis end-to-end on `codex-cli 0.140.0`:
 
 - ✅ The **unmodified** `research-run/SKILL.md` symlinks into `~/.codex/prompts/` and resolves as a prompt.
-- ✅ `install-codex.sh` wires all 12 prompts + the shared config; `pitcrew-codex.sh` builds a correct `codex exec` invocation.
+- ✅ `install-codex.sh` wires all 13 prompts + the shared config; `pitcrew-codex.sh` builds a correct `codex exec` invocation.
 - ✅ `codex exec` ingested the full skill body (via stdin) + the project directive and began the pass.
 - ⏸️ The full agentic completion was cut short only by a **Codex account usage limit**, not by anything in pitcrew — re-run `./bin/pitcrew-codex.sh research-run <project>` once quota is available to see the ledger written.
 

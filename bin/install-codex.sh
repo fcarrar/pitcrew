@@ -36,6 +36,7 @@ DEFAULT_FILE="${PITCREW_HOME:-$HOME/.claude/agent-loop}/default.txt"
 SKILLS=(
   research-run qa-run implementer-run reviewer-run validator-run unblock
   investigate-run stale-sweep ops-run releaser-run manager-run coverage-run
+  dev-verify-run
 )
 
 echo "=== pitcrew Codex installer ==="
