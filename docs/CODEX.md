@@ -55,6 +55,7 @@ The other ten coordinate through Linear. Wire it once:
 */15 *  * * *  CODEX_SANDBOX=danger-full-access /path/to/pitcrew/bin/pitcrew-codex.sh implementer-run my-project >> ~/.codex/logs/implementer-run.log 2>&1
 */15 *  * * *  CODEX_SANDBOX=danger-full-access /path/to/pitcrew/bin/pitcrew-codex.sh reviewer-run my-project    >> ~/.codex/logs/reviewer-run.log 2>&1
 0    *  * * *  CODEX_SANDBOX=danger-full-access /path/to/pitcrew/bin/pitcrew-codex.sh manager-run my-project     >> ~/.codex/logs/manager-run.log 2>&1
+*/15 *  * * *  CODEX_SANDBOX=danger-full-access /path/to/pitcrew/bin/pitcrew-codex.sh dev-verify-run my-project  >> ~/.codex/logs/dev-verify-run.log 2>&1  # gh + curl to dev; Linear-free
 ```
 
 `pitcrew-codex.sh` invokes `codex exec` with the skill body on **stdin** (the skill's `---`

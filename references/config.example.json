@@ -40,6 +40,13 @@
     "default_scope": "agent-only"
   },
 
+  "dev_verify": {
+    "_comment": "dev-verify-run: post-deploy verifier. After a merged PR is confirmed LIVE on dev (repos[].health.version_url/dev_url, else settle_delay), runs the test-flow flows for the changed capabilities against dev and writes failures to findings_ledger -> manager `verify` bucket. Reuses validator's diff->capability planning + qa's flow-runner. Omit if you don't run dev-verify-run.",
+    "settle_delay_seconds": 600,
+    "max_prs_per_fire": 3,
+    "findings_ledger": ""
+  },
+
   "coverage": {
     "_comment": "coverage-run. Finds capability×surface cells with no flow and opens grounded flow PRs to the test-flow repo (paced). Uses qa.test_flow_repo + researcher.architecture_repo (capability docs) + the api-client types for grounding.",
     "max_new_flows_per_fire": 3
@@ -50,7 +57,8 @@
     "sources": [
       { "name": "audit",    "findings_json": "~/Documents/projects/<audit>/data/final_result.json", "format": "audit-v1", "label": "audit", "report_md": "~/Documents/projects/<audit>/REPORT.md" },
       { "name": "qa",       "findings_json": "~/.claude/agent-loop/<project>/findings/qa-findings.json",       "format": "qa-v1",       "label": "qa",       "target_depth": 5, "investigate_wip": 3 },
-      { "name": "research", "findings_json": "~/.claude/agent-loop/<project>/findings/research-findings.json", "format": "research-v1", "label": "research", "target_depth": 5, "investigate_wip": 3 }
+      { "name": "research", "findings_json": "~/.claude/agent-loop/<project>/findings/research-findings.json", "format": "research-v1", "label": "research", "target_depth": 5, "investigate_wip": 3 },
+      { "name": "verify",   "findings_json": "~/.claude/agent-loop/<project>/findings/verify-findings.json",   "format": "qa-v1",       "label": "verify",   "target_depth": 4, "investigate_wip": 2 }
     ],
     "target_queue_depth": 5,
     "investigate_wip": 3,

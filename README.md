@@ -15,7 +15,7 @@ The **same skill files run on [Claude Code](https://claude.com/claude-code) or [
 > deciding scope) are explicitly armed or routed to a human, never assumed.
 
 <p align="center">
-  <img src="assets/pinned-loops.png" alt="The twelve pitcrew skills running as pinned /loop sessions in Claude Code" width="420">
+  <img src="assets/pinned-loops.png" alt="The thirteen pitcrew skills running as pinned /loop sessions in Claude Code" width="420">
 </p>
 <p align="center"><em>The whole crew on duty: each member is a <a href="https://claude.com/claude-code">Claude Code</a> agent running as a pinned <code>/loop</code> session on its own cadence.</em></p>
 
@@ -37,6 +37,7 @@ Each skill is a crew member with a single role. They coordinate through a shared
 | `/unblock` | **Diagnostics (you-in-the-loop)** | Triages blocked tickets with a structured question to *you*. Splits children, drafts a plan, files an investigation, sends back, or closes. |
 | `/investigate-run` | **Diagnostics (read-only)** | Dives into one blocker. Read-only investigation, posts findings + ranked candidate fixes, hands back to `/unblock`. |
 | `/coverage-run` | **Track mapper** | Finds capability×surface gaps in the test-flow repo and opens grounded new-flow PRs. Proactive complement to the test-first rule. |
+| `/dev-verify-run` | **Track inspector** | After a merge is live on dev, runs the targeted flows for what changed against the live dev env. Catches "green CI, broken on real dev." |
 | `/ops-run` | **Spotter** | Watches **running prod** — polls health endpoints, anti-flap re-checks, files deduped incident tickets on confirmed degradation. Observe-and-file only. |
 | `/releaser-run` | **Tire change** | Ships already-merged work dev→prod as versioned releases, smoke-checks each stage, auto-rolls-back on a confirmed break. **Per-repo armed.** |
 | `/stale-sweep` | **Cleanup** | Closes tickets whose PRs merged but state didn't propagate; prunes leaked worktrees and stale deploy PRs. Catches the lifecycle gaps. |
@@ -173,6 +174,7 @@ Each crew member runs on its own cadence. Launch only the ones you want:
 /loop 15min /releaser-run     # needs repos[].release (starts disarmed at autonomy:"prepare")
 /loop 1h    /manager-run      # needs manager.sources[]
 /loop 12h   /coverage-run     # needs qa.test_flow_repo + an architecture repo
+/loop 15min /dev-verify-run   # post-deploy verify on live dev
 ```
 
 You can also point any skill at one target on demand —

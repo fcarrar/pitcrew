@@ -134,6 +134,7 @@ loops you want (each on its own cadence; omit any you don't use):
 /loop 15min /releaser-run       # needs repos[].release (starts at autonomy:"prepare")
 /loop 1h    /manager-run        # needs manager.sources[]
 /loop 12h   /coverage-run       # needs qa.test_flow_repo + an architecture repo
+/loop 15min /dev-verify-run    # needs qa.test_flow_repo + an architecture repo + repos[].health
 ```
 
 Per-skill config requirements: `repos[].health` (ops), `repos[].release` (releaser),
